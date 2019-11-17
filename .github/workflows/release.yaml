@@ -1,0 +1,57 @@
+on:
+  push:
+    tags:
+      - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+name: Release
+jobs:
+  build:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: go 1.13
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.13
+        id: go
+      - name: checkout
+        uses: actions/checkout@master
+      - name: Build Release
+        env:
+          IMAGE: juanlee/knode
+          GITHUB_REF: ${{ github.ref }}
+          REGISTRY_USERNAME: juanlee
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: |
+          echo ${REGISTRY_PASSWORD} | docker login -u ${REGISTRY_USERNAME} --password-stdin
+          RELEASE_TAG="${GITHUB_REF/refs\/tags\//}"
+          IMG="${IMAGE}:${RELEASE_TAG}" make release
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: knode ${{ github.ref }}
+          draft: false
+          prerelease: false
+      - name: Upload knode-default.yaml
+        id: upload-release-asset-default
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./out/knode-default.yaml
+          asset_name: knode-default.yaml
+          asset_content_type: text/plain
+      - name: Upload knode-tmpdir.yaml
+        id: upload-release-asset-tmpdir
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./out/knode-tmpdir.yaml
+          asset_name: knode-tmpdir.yaml
+          asset_content_type: text/plain

@@ -2,6 +2,8 @@
 # Image URL to use all building/pushing image targets
 IMG ?= knode:latest
 
+DEPLOY ?= default
+
 # Directories
 TOOLS_DIR := $(PWD)/hack/tools
 TOOLS_BIN_DIR := $(TOOLS_DIR)/bin
@@ -31,7 +33,8 @@ $(KUSTOMIZE): $(TOOLS_DIR)/go.mod # Build kustomize from tools folder.
 # Deploy in the configured Kubernetes cluster in ~/.kube/config
 deploy: $(KUSTOMIZE)
 	cd config/knode && $(KUSTOMIZE) edit set image knode=${IMG}
-	$(KUSTOMIZE) build config/default | kubectl apply -f -
+	$(KUSTOMIZE) build config/$(DEPLOY) | kubectl apply -f -
+	kubectl rollout restart daemonset -n knode-system knode-daemon
 
 # Linting
 
@@ -62,8 +65,9 @@ release: release-containers release-manifests
 
 .PHONY: release-manifests
 release-manifests: $(KUSTOMIZE) $(RELEASE_DIR)
-	cd config/knode && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default > $(RELEASE_DIR)/knode-components.yaml
+	cd config/knode && $(KUSTOMIZE) edit set image knode=${IMG}
+	$(KUSTOMIZE) build config/default > $(RELEASE_DIR)/knode-default.yaml
+	$(KUSTOMIZE) build config/tmpdir > $(RELEASE_DIR)/knode-tmpdir.yaml
 
 .PHONY: release-containers
 release-containers: $(RELEASE_DIR)
