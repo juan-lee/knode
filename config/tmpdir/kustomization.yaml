@@ -18,4 +18,4 @@ bases:
 
 patchesStrategicMerge:
 - patch-configmap.yaml
-
+- patch-daemonset.yaml
