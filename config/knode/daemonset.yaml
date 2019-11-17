@@ -1,0 +1,67 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: daemon
+  namespace: system
+  labels:
+    k8s-app: knode
+spec:
+  selector:
+    matchLabels:
+      name: knode
+  template:
+    metadata:
+      labels:
+        name: knode
+    spec:
+      hostPID: true # For entering the host mont namespace via init
+      initContainers:
+      - name: init
+        image: knode:latest
+        imagePullPolicy: Always
+        command:
+        - /knode
+        args:
+        - init
+        resources:
+          limits:
+            memory: 100Mi
+          requests:
+            cpu: 10m
+            memory: 50Mi
+        securityContext:
+          privileged: true # For nsenter /proc/1/ns/mnt
+        volumeMounts:
+        - name: etc-docker
+          mountPath: /etc/docker
+        - name: configs
+          mountPath: /configs
+          readOnly: true
+      containers:
+      - name: knode
+        image: knode:latest
+        imagePullPolicy: Always
+        command:
+        - /knode
+        resources:
+          limits:
+            memory: 100Mi
+          requests:
+            cpu: 10m
+            memory: 50Mi
+        volumeMounts:
+        - name: etc-docker
+          mountPath: /etc/docker
+          readOnly: true
+        - name: configs
+          mountPath: /configs
+          readOnly: true
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: etc-docker
+        hostPath:
+          path: /etc/docker
+      - name: configs
+        configMap:
+          name: config

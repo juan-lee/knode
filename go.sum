@@ -1,0 +1,4 @@
+github.com/go-logr/logr v0.1.0 h1:M1Tv3VzNlEHg6uyACnRdtrploV2P7wZqH8BoQMtz0cg=
+github.com/go-logr/logr v0.1.0/go.mod h1:ixOQHD9gLJUVQQ2ZOR7zLEifBX6tGkNJF4QyIY7sIas=
+k8s.io/klog/v2 v2.0.0-20191023130815-8422fac62d1e h1:jPzUE/UxWJCHLM2nR4icv+C05qmrHwYyJVEUlZesBNc=
+k8s.io/klog/v2 v2.0.0-20191023130815-8422fac62d1e/go.mod h1:q4PVo0BneA7GsUJvFqoEvOCVmYJP0c5Y4VxrAYpJrIk=
