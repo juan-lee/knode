@@ -35,6 +35,8 @@ spec:
         volumeMounts:
         - name: etc-docker
           mountPath: /etc/docker
+        - name: etc-systemd-system
+          mountPath: /etc/systemd/system
         - name: configs
           mountPath: /configs
           readOnly: true
@@ -54,6 +56,9 @@ spec:
         - name: etc-docker
           mountPath: /etc/docker
           readOnly: true
+        - name: etc-systemd-system
+          mountPath: /etc/systemd/system
+          readOnly: true
         - name: configs
           mountPath: /configs
           readOnly: true
@@ -62,6 +67,9 @@ spec:
       - name: etc-docker
         hostPath:
           path: /etc/docker
+      - name: etc-systemd-system
+        hostPath:
+          path: /etc/systemd/system
       - name: configs
         configMap:
           name: config

@@ -1,0 +1,10 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: daemon
+  namespace: system
+  labels:
+    k8s-app: knode
+spec:
+  minReadySeconds: 120

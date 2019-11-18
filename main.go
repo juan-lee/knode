@@ -18,6 +18,7 @@ package main
 import (
 	"bytes"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"math"
 	"os"
@@ -29,7 +30,9 @@ import (
 
 func readFile(name string) ([]byte, error) {
 	file, err := os.Open(name)
-	if err != nil {
+	if err != nil && os.IsNotExist(err) {
+		return []byte(""), nil
+	} else if err != nil {
 		return nil, err
 	}
 	defer file.Close()
@@ -45,6 +48,14 @@ func nsEnterCommand(arg ...string) *exec.Cmd {
 	return exec.Command("/usr/bin/nsenter", args...)
 }
 
+func daemonReload() error {
+	cmd := nsEnterCommand("/bin/systemctl", "daemon-reload")
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func restartDocker() error {
 	cmd := nsEnterCommand("/bin/systemctl", "restart", "docker")
 	if err := cmd.Run(); err != nil {
@@ -53,7 +64,28 @@ func restartDocker() error {
 	return nil
 }
 
+func restartKubelet() error {
+	cmd := nsEnterCommand("/bin/systemctl", "restart", "kubelet")
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func reboot() error {
+	cmd := nsEnterCommand("/bin/systemctl", "reboot")
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	return nil
+}
+
 func configureDockerDaemon() error {
+	_, err := os.Stat("/configs/daemon.json")
+	if os.IsNotExist(err) {
+		return nil
+	}
+
 	current, err := readFile("/etc/docker/daemon.json")
 	if err != nil {
 		return err
@@ -76,11 +108,98 @@ func configureDockerDaemon() error {
 	if err := restartDocker(); err != nil {
 		return err
 	}
+	if err := restartKubelet(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func configureRuntimeSlice() (bool, error) {
+	_, err := os.Stat("/configs/runtime.slice")
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+
+	current, err := readFile("/etc/systemd/system/runtime.slice")
+	if err != nil {
+		return false, err
+	}
+	desired, err := readFile("/configs/runtime.slice")
+	if err != nil {
+		return false, err
+	}
+
+	if bytes.Equal(current, desired) {
+		klog.Info("/etc/systemd/system/runtime.slice already configured")
+		return false, nil
+	}
+
+	klog.Infof("Updating /etc/systemd/system/runtime.slice:\n%s", desired)
+	if err := ioutil.WriteFile("/etc/systemd/system/runtime.slice", desired, 0644); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func configureServiceCGroup(name string) (bool, error) {
+	if _, err := os.Stat("/configs/10-cgroup.conf"); os.IsNotExist(err) {
+		return false, nil
+	}
+
+	if err := os.MkdirAll(name, 0755); err != nil {
+		return false, err
+	}
+
+	current, err := readFile(fmt.Sprintf("%s/10-cgroup.conf", name))
+	if err != nil {
+		return false, err
+	}
+	desired, err := readFile("/configs/10-cgroup.conf")
+	if err != nil {
+		return false, err
+	}
+
+	if bytes.Equal(current, desired) {
+		klog.Infof("%s/10-cgroup.conf already configured", name)
+		return false, nil
+	}
+
+	klog.Infof("Updating %s/10-cgroup.conf:\n%s", name, desired)
+	if err := ioutil.WriteFile(fmt.Sprintf("%s/10-cgroup.conf", name), desired, 0644); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func configureCGroups() error {
+	rsChanged, err := configureRuntimeSlice()
+	if err != nil {
+		return err
+	}
+	kChanged, err := configureServiceCGroup("/etc/systemd/system/kubelet.service.d")
+	if err != nil {
+		return err
+	}
+	dChanged, err := configureServiceCGroup("/etc/systemd/system/docker.service.d")
+	if err != nil {
+		return err
+	}
+	if rsChanged || kChanged || dChanged {
+		if err := daemonReload(); err != nil {
+			return err
+		}
+		if err := reboot(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func runInit() error {
 	if err := configureDockerDaemon(); err != nil {
+		return err
+	}
+	if err := configureCGroups(); err != nil {
 		return err
 	}
 	return nil
