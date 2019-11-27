@@ -1,0 +1,157 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config
+  namespace: system
+data:
+  kubelet.service: |
+    [Unit]
+    Description=kubelet: The Kubernetes Node Agent
+    Documentation=http://kubernetes.io/docs/
+
+    [Service]
+    ExecStart=/usr/local/bin/kubelet
+    Restart=always
+    StartLimitInterval=0
+    RestartSec=10
+
+    [Install]
+    WantedBy=multi-user.target
+  10-kubeadm.conf: |
+    # Note: This dropin only works with kubelet v1.11+
+    [Service]
+    Environment="KUBELET_KUBECONFIG_ARGS=--kubeconfig=/var/lib/kubelet/kubeconfig"
+    Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
+    EnvironmentFile=-/var/lib/kubelet/flags.env
+    EnvironmentFile=-/etc/default/kubelet
+    ExecStart=
+    ExecStart=/usr/local/bin/kubelet $KUBELET_KUBECONFIG_ARGS --node-labels="${KUBELET_NODE_LABELS}" --volume-plugin-dir=/etc/kubernetes/volumeplugins $KUBELET_CONFIG_ARGS $KUBELET_CONFIG $KUBELET_EXTRA_ARGS 
+  flags.env: |
+    KUBELET_EXTRA_ARGS=--container-runtime=remote --container-runtime-endpoint=/run/containerd/containerd.sock --network-plugin=cni --pod-cidr=10.244.0.0/16
+  config.yaml: |
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    podCIDR: "10.244.0.0/16"
+  containerd.service: |
+    [Unit]
+    Description=containerd container runtime
+    Documentation=https://containerd.io
+    After=network.target
+
+    [Service]
+    ExecStartPre=-/sbin/modprobe overlay
+    ExecStart=/usr/bin/containerd
+
+    Delegate=yes
+    KillMode=process
+    # Having non-zero Limit*s causes performance problems due to accounting overhead
+    # in the kernel. We recommend using cgroups to do container-local accounting.
+    LimitNPROC=infinity
+    LimitCORE=infinity
+    LimitNOFILE=infinity
+    # # Comment TasksMax if your systemd version does not supports it.
+    # # Only systemd 226 and above support this version.
+    TasksMax=infinity
+
+    [Install]
+    WantedBy=multi-user.target
+  config.toml: |
+    root = "/var/lib/containerd"
+    state = "/run/containerd"
+    oom_score = 0
+
+    [grpc]
+      address = "/run/containerd/containerd.sock"
+      uid = 0
+      gid = 0
+      max_recv_message_size = 16777216
+      max_send_message_size = 16777216
+
+    [debug]
+      address = ""
+      uid = 0
+      gid = 0
+      level = ""
+
+    [metrics]
+      address = ""
+      grpc_histogram = false
+
+    [cgroup]
+      path = ""
+
+    [plugins]
+      [plugins.cgroups]
+        no_prometheus = false
+      [plugins.cri]
+        stream_server_address = "127.0.0.1"
+        stream_server_port = "0"
+        enable_selinux = false
+        sandbox_image = "k8s.gcr.io/pause:3.1"
+        stats_collect_period = 10
+        systemd_cgroup = false
+        enable_tls_streaming = false
+        max_container_log_line_size = 16384
+        [plugins.cri.containerd]
+          snapshotter = "overlayfs"
+          no_pivot = false
+          [plugins.cri.containerd.default_runtime]
+            runtime_type = "io.containerd.runtime.v1.linux"
+            runtime_engine = ""
+            runtime_root = ""
+          [plugins.cri.containerd.untrusted_workload_runtime]
+            runtime_type = ""
+            runtime_engine = ""
+            runtime_root = ""
+        [plugins.cri.cni]
+          bin_dir = "/opt/cni/bin"
+          conf_dir = "/etc/cni/net.d"
+          conf_template = ""
+        [plugins.cri.registry]
+          [plugins.cri.registry.mirrors]
+            [plugins.cri.registry.mirrors."docker.io"]
+              endpoint = ["https://registry-1.docker.io"]
+        [plugins.cri.x509_key_pair_streaming]
+          tls_cert_file = ""
+          tls_key_file = ""
+      [plugins.diff-service]
+        default = ["walking"]
+      [plugins.linux]
+        shim = "containerd-shim"
+        runtime = "runc"
+        runtime_root = ""
+        no_shim = false
+        shim_debug = false
+      [plugins.opt]
+        path = "/opt/containerd"
+      [plugins.restart]
+        interval = "10s"
+      [plugins.scheduler]
+        pause_threshold = 0.02
+        deletion_threshold = 0
+        mutation_threshold = 100
+        schedule_delay = "0s"
+        startup_delay = "100ms"
+  runtime.slice: |
+    [Unit]
+    Description=Limited resources slice for Kubernetes services
+    Documentation=man:systemd.special(7)
+    DefaultDependencies=no
+    Before=slices.target
+    Requires=-.slice
+    After=-.slice
+  containerd-10-cgroup.conf: |
+    [Service]
+    CPUAccounting=true
+    MemoryAccounting=true
+    Slice=runtime.slice
+  docker-10-cgroup.conf: |
+    [Service]
+    CPUAccounting=true
+    MemoryAccounting=true
+    Slice=runtime.slice
+  kubelet-10-cgroup.conf: |
+    [Service]
+    CPUAccounting=true
+    MemoryAccounting=true
+    Slice=runtime.slice

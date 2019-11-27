@@ -34,7 +34,6 @@ $(KUSTOMIZE): $(TOOLS_DIR)/go.mod # Build kustomize from tools folder.
 deploy: $(KUSTOMIZE)
 	cd config/knode && $(KUSTOMIZE) edit set image knode=${IMG}
 	$(KUSTOMIZE) build config/$(DEPLOY) | kubectl apply -f -
-	kubectl rollout restart daemonset -n knode-system knode-daemon
 
 # Linting
 
@@ -68,6 +67,7 @@ release-manifests: $(KUSTOMIZE) $(RELEASE_DIR)
 	cd config/knode && $(KUSTOMIZE) edit set image knode=${IMG}
 	$(KUSTOMIZE) build config/default > $(RELEASE_DIR)/knode-default.yaml
 	$(KUSTOMIZE) build config/tmpdir > $(RELEASE_DIR)/knode-tmpdir.yaml
+	$(KUSTOMIZE) build config/kubelet > $(RELEASE_DIR)/knode-kubelet.yaml
 
 .PHONY: release-containers
 release-containers: $(RELEASE_DIR)

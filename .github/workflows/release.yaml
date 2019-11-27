@@ -55,3 +55,13 @@ jobs:
           asset_path: ./out/knode-tmpdir.yaml
           asset_name: knode-tmpdir.yaml
           asset_content_type: text/plain
+      - name: Upload knode-kubelet.yaml
+        id: upload-release-asset-kubelet
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./out/knode-kubelet.yaml
+          asset_name: knode-kubelet.yaml
+          asset_content_type: text/plain

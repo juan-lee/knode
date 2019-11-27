@@ -18,7 +18,6 @@ package main
 import (
 	"bytes"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"math"
 	"os"
@@ -49,146 +48,172 @@ func nsEnterCommand(arg ...string) *exec.Cmd {
 }
 
 func daemonReload() error {
-	cmd := nsEnterCommand("/bin/systemctl", "daemon-reload")
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return nil
+	return nsEnterCommand("/bin/systemctl", "daemon-reload").Run()
 }
 
 func restartDocker() error {
-	cmd := nsEnterCommand("/bin/systemctl", "restart", "docker")
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return nil
+	return nsEnterCommand("/bin/systemctl", "restart", "docker").Run()
 }
 
 func restartKubelet() error {
-	cmd := nsEnterCommand("/bin/systemctl", "restart", "kubelet")
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return nil
+	return nsEnterCommand("/bin/systemctl", "restart", "kubelet").Run()
 }
 
-func reboot() error {
-	cmd := nsEnterCommand("/bin/systemctl", "reboot")
-	if err := cmd.Run(); err != nil {
-		return err
-	}
-	return nil
+func restartContainerd() error {
+	return nsEnterCommand("/bin/systemctl", "restart", "containerd").Run()
 }
 
-func configureDockerDaemon() error {
-	_, err := os.Stat("/configs/daemon.json")
+func enableContainerd() error {
+	return nsEnterCommand("/bin/systemctl", "enable", "containerd").Run()
+}
+
+func replaceIfChanged(src, dst string) (bool, error) {
+	_, err := os.Stat(src)
 	if os.IsNotExist(err) {
-		return nil
+		return false, nil
 	}
 
-	current, err := readFile("/etc/docker/daemon.json")
+	current, err := readFile(dst)
 	if err != nil {
-		return err
+		return false, err
 	}
-	desired, err := readFile("/configs/daemon.json")
+	desired, err := readFile(src)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if bytes.Equal(current, desired) {
-		klog.Info("/etc/docker/daemon.json already configured")
-		return nil
+		klog.Infof("%s already configured", dst)
+		return false, nil
 	}
 
-	klog.Infof("Updating /etc/docker/daemon.json:\n%s", desired)
-	if err := ioutil.WriteFile("/etc/docker/daemon.json", desired, 0644); err != nil {
-		return err
+	klog.Infof("Updating %s:\n%s", dst, desired)
+	if err := ioutil.WriteFile(dst, desired, 0644); err != nil {
+		return false, err
 	}
+	return true, nil
+}
 
-	if err := restartDocker(); err != nil {
+func configureDockerDaemon() error {
+	changed, err := replaceIfChanged("/configs/daemon.json", "/etc/docker/daemon.json")
+	if err != nil {
 		return err
 	}
-	if err := restartKubelet(); err != nil {
-		return err
+	if changed {
+		if err := restartDocker(); err != nil {
+			return err
+		}
+		if err := restartKubelet(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func configureRuntimeSlice() (bool, error) {
-	_, err := os.Stat("/configs/runtime.slice")
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-
-	current, err := readFile("/etc/systemd/system/runtime.slice")
-	if err != nil {
-		return false, err
-	}
-	desired, err := readFile("/configs/runtime.slice")
-	if err != nil {
-		return false, err
-	}
-
-	if bytes.Equal(current, desired) {
-		klog.Info("/etc/systemd/system/runtime.slice already configured")
-		return false, nil
-	}
-
-	klog.Infof("Updating /etc/systemd/system/runtime.slice:\n%s", desired)
-	if err := ioutil.WriteFile("/etc/systemd/system/runtime.slice", desired, 0644); err != nil {
-		return false, err
-	}
-	return true, nil
+	return replaceIfChanged("/configs/runtime.slice", "/etc/systemd/system/runtime.slice")
 }
 
-func configureServiceCGroup(name string) (bool, error) {
-	if _, err := os.Stat("/configs/10-cgroup.conf"); os.IsNotExist(err) {
-		return false, nil
-	}
-
-	if err := os.MkdirAll(name, 0755); err != nil {
+func configureDockerServiceCgroup() (bool, error) {
+	if err := os.MkdirAll("/etc/systemd/system/docker.service.d", 0755); err != nil {
 		return false, err
 	}
+	return replaceIfChanged("/configs/docker-10-cgroup.conf", "/etc/systemd/system/docker.service.d/10-cgroup.conf")
+}
 
-	current, err := readFile(fmt.Sprintf("%s/10-cgroup.conf", name))
-	if err != nil {
+func configureKubeletServiceCgroup() (bool, error) {
+	if err := os.MkdirAll("/etc/systemd/system/kubelet.service.d", 0755); err != nil {
 		return false, err
 	}
-	desired, err := readFile("/configs/10-cgroup.conf")
-	if err != nil {
-		return false, err
-	}
-
-	if bytes.Equal(current, desired) {
-		klog.Infof("%s/10-cgroup.conf already configured", name)
-		return false, nil
-	}
-
-	klog.Infof("Updating %s/10-cgroup.conf:\n%s", name, desired)
-	if err := ioutil.WriteFile(fmt.Sprintf("%s/10-cgroup.conf", name), desired, 0644); err != nil {
-		return false, err
-	}
-	return true, nil
+	return replaceIfChanged("/configs/kubelet-10-cgroup.conf", "/etc/systemd/system/kubelet.service.d/10-cgroup.conf")
 }
 
 func configureCGroups() error {
-	rsChanged, err := configureRuntimeSlice()
+	_, err := configureRuntimeSlice()
 	if err != nil {
 		return err
 	}
-	kChanged, err := configureServiceCGroup("/etc/systemd/system/kubelet.service.d")
+	kChanged, err := configureKubeletServiceCgroup()
 	if err != nil {
 		return err
 	}
-	dChanged, err := configureServiceCGroup("/etc/systemd/system/docker.service.d")
+	dChanged, err := configureDockerServiceCgroup()
 	if err != nil {
 		return err
 	}
-	if rsChanged || kChanged || dChanged {
+	if kChanged || dChanged {
 		if err := daemonReload(); err != nil {
 			return err
 		}
-		if err := reboot(); err != nil {
+		if err := restartDocker(); err != nil {
+			return err
+		}
+		if err := restartKubelet(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func configureContainerd() error {
+	if err := os.MkdirAll("/etc/containerd", 0755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll("/etc/systemd/system/containerd.service.d", 0755); err != nil {
+		return err
+	}
+	_, err := configureRuntimeSlice()
+	if err != nil {
+		return err
+	}
+	cgChanged, err := replaceIfChanged("/configs/containerd-10-cgroup.conf", "/etc/systemd/system/containerd.service.d/10-cgroup.conf")
+	if err != nil {
+		return err
+	}
+	configChanged, err := replaceIfChanged("/configs/config.toml", "/etc/containerd/config.toml")
+	if err != nil {
+		return err
+	}
+	serviceChanged, err := replaceIfChanged("/configs/containerd.service", "/etc/systemd/system/containerd.service")
+	if err != nil {
+		return err
+	}
+	if cgChanged || configChanged || serviceChanged {
+		if err := enableContainerd(); err != nil {
+			return err
+		}
+		if err := daemonReload(); err != nil {
+			return err
+		}
+		if err := restartContainerd(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func configureKubelet() error {
+	serviceChanged, err := replaceIfChanged("/configs/kubelet.service", "/etc/systemd/system/kubelet.service")
+	if err != nil {
+		return err
+	}
+	confChanged, err := replaceIfChanged("/configs/10-kubeadm.conf", "/etc/systemd/system/kubelet.service.d/10-kubeadm.conf")
+	if err != nil {
+		return err
+	}
+	flagsChanged, err := replaceIfChanged("/configs/flags.env", "/var/lib/kubelet/flags.env")
+	if err != nil {
+		return err
+	}
+	configChanged, err := replaceIfChanged("/configs/config.yaml", "/var/lib/kubelet/config.yaml")
+	if err != nil {
+		return err
+	}
+	if serviceChanged || confChanged || flagsChanged || configChanged {
+		if err := daemonReload(); err != nil {
+			return err
+		}
+		if err := restartKubelet(); err != nil {
 			return err
 		}
 	}
@@ -200,6 +225,12 @@ func runInit() error {
 		return err
 	}
 	if err := configureCGroups(); err != nil {
+		return err
+	}
+	if err := configureContainerd(); err != nil {
+		return err
+	}
+	if err := configureKubelet(); err != nil {
 		return err
 	}
 	return nil

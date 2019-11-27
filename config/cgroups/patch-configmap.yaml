@@ -12,7 +12,12 @@ data:
     Before=slices.target
     Requires=-.slice
     After=-.slice
-  10-cgroup.conf: |
+  docker-10-cgroup.conf: |
+    [Service]
+    CPUAccounting=true
+    MemoryAccounting=true
+    Slice=runtime.slice
+  kubelet-10-cgroup.conf: |
     [Service]
     CPUAccounting=true
     MemoryAccounting=true

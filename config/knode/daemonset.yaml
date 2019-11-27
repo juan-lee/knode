@@ -15,7 +15,7 @@ spec:
       labels:
         name: knode
     spec:
-      hostPID: true # For entering the host mont namespace via init
+      hostPID: true # For entering the host mount namespace via init
       initContainers:
       - name: init
         image: knode:latest
@@ -33,13 +33,13 @@ spec:
         securityContext:
           privileged: true # For nsenter /proc/1/ns/mnt
         volumeMounts:
-        - name: etc-docker
-          mountPath: /etc/docker
-        - name: etc-systemd-system
-          mountPath: /etc/systemd/system
         - name: configs
           mountPath: /configs
           readOnly: true
+        - name: etc
+          mountPath: /etc
+        - name: var-lib-kubelet
+          mountPath: /var/lib/kubelet
       containers:
       - name: knode
         image: knode:latest
@@ -53,23 +53,23 @@ spec:
             cpu: 10m
             memory: 50Mi
         volumeMounts:
-        - name: etc-docker
-          mountPath: /etc/docker
-          readOnly: true
-        - name: etc-systemd-system
-          mountPath: /etc/systemd/system
-          readOnly: true
         - name: configs
           mountPath: /configs
           readOnly: true
+        - name: etc
+          mountPath: /etc
+          readOnly: true
+        - name: var-lib-kubelet
+          mountPath: /var/lib/kubelet
+          readOnly: true
       terminationGracePeriodSeconds: 30
       volumes:
-      - name: etc-docker
-        hostPath:
-          path: /etc/docker
-      - name: etc-systemd-system
-        hostPath:
-          path: /etc/systemd/system
       - name: configs
         configMap:
           name: config
+      - name: etc
+        hostPath:
+          path: /etc
+      - name: var-lib-kubelet
+        hostPath:
+          path: /var/lib/kubelet
