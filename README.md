@@ -22,5 +22,6 @@ kubectl rollout status daemonset -n knode-system knode-daemon
 
 # Update knode to move /var/lib/docker to /mnt/docker
 curl -L https://github.com/juan-lee/knode/releases/download/v0.1.1/knode-tmpdir.yaml | kubectl apply -f -
+kubectl rollout restart daemonset -n knode-system knode-daemon
 kubectl rollout status daemonset -n knode-system knode-daemon
 ```

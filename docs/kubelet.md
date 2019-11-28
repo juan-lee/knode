@@ -1,9 +1,9 @@
-# kubelet hacking
+## kubelet hacking
 
 knode can be used to enable 
 [Dynamic Kubelet Configuration](https://kubernetes.io/blog/2018/07/11/dynamic-kubelet-configuration/).
 
-#### Installing knode
+### Installing knode
 
 knode should be installed with defaults first. Once the knode daemonset is installed, applying the
 update to enable dynamic kubelet configuration will be controlled by rolling update. It's currently
@@ -16,10 +16,11 @@ kubectl rollout status daemonset -n knode-system knode-daemon
 
 # Update knode to move /var/lib/docker to /mnt/docker
 curl -L https://github.com/juan-lee/knode/releases/download/v0.1.1/knode-kubelet.yaml | kubectl apply -f -
+kubectl rollout restart daemonset -n knode-system knode-daemon
 kubectl rollout status daemonset -n knode-system knode-daemon
 ```
 
-# Reconfigure a Node's Kubelet to use Dynamic Configuration
+### Reconfigure a Node's Kubelet to use Dynamic Configuration
 
 Follow [these](https://kubernetes.io/docs/tasks/administer-cluster/reconfigure-kubelet/)
 instructions.
