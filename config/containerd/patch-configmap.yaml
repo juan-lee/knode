@@ -21,17 +21,33 @@ data:
     # Note: This dropin only works with kubelet v1.11+
     [Service]
     Environment="KUBELET_KUBECONFIG_ARGS=--kubeconfig=/var/lib/kubelet/kubeconfig"
-    Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
+    Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml --dynamic-config-dir=/var/lib/kubelet/dyncfg "
     EnvironmentFile=-/var/lib/kubelet/flags.env
     EnvironmentFile=-/etc/default/kubelet
     ExecStart=
-    ExecStart=/usr/local/bin/kubelet $KUBELET_KUBECONFIG_ARGS --node-labels="${KUBELET_NODE_LABELS}" --volume-plugin-dir=/etc/kubernetes/volumeplugins $KUBELET_CONFIG_ARGS $KUBELET_CONFIG $KUBELET_EXTRA_ARGS 
+    ExecStart=/usr/local/bin/kubelet $KUBELET_KUBECONFIG_ARGS --node-labels="${KUBELET_NODE_LABELS}" --volume-plugin-dir=/etc/kubernetes/volumeplugins $KUBELET_CONFIG_ARGS $KUBELET_AZURE_ARGS $KUBELET_EXTRA_ARGS 
   flags.env: |
-    KUBELET_EXTRA_ARGS=--container-runtime=remote --container-runtime-endpoint=/run/containerd/containerd.sock --network-plugin=cni --pod-cidr=10.244.0.0/16
+    KUBELET_EXTRA_ARGS=--container-runtime=remote --container-runtime-endpoint=unix:///run/containerd/containerd.sock --network-plugin=kubenet
   config.yaml: |
     apiVersion: kubelet.config.k8s.io/v1beta1
     kind: KubeletConfiguration
-    podCIDR: "10.244.0.0/16"
+    readOnlyPort: 10255
+    clusterDNS:
+    - 10.0.0.10
+    authentication:
+      x509:
+        clientCAFile: "/etc/kubernetes/certs/ca.crt"
+    tlsCertFile: "/etc/kubernetes/certs/kubeletserver.crt"
+    tlsPrivateKeyFile: "/etc/kubernetes/certs/kubeletserver.key"
+    tlsCipherSuites:
+    - TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+    - TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+    - TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305
+    - TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+    - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305
+    - TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+    - TLS_RSA_WITH_AES_256_GCM_SHA384
+    - TLS_RSA_WITH_AES_128_GCM_SHA256
   containerd.service: |
     [Unit]
     Description=containerd container runtime
@@ -55,6 +71,26 @@ data:
 
     [Install]
     WantedBy=multi-user.target
+  kubenet.conf: |
+    {
+        "cniVersion": "0.3.1",
+        "name": "kubenet",
+        "plugins": [{
+            "type": "bridge",
+            "bridge": "cbr0",
+            "mtu": 1500,
+            "addIf": "eth0",
+            "isGateway": true,
+            "ipMasq": false,
+            "hairpinMode": false,
+            "ipam": {
+                "type": "host-local",
+                "subnet": "{{.PodCIDR}}",
+                "routes": [{ "dst": "0.0.0.0/0" }]
+
+            }
+        }]
+    }
   config.toml: |
     root = "/var/lib/containerd"
     state = "/run/containerd"
@@ -106,7 +142,7 @@ data:
         [plugins.cri.cni]
           bin_dir = "/opt/cni/bin"
           conf_dir = "/etc/cni/net.d"
-          conf_template = ""
+          conf_template = "/etc/containerd/kubenet.conf"
         [plugins.cri.registry]
           [plugins.cri.registry.mirrors]
             [plugins.cri.registry.mirrors."docker.io"]
