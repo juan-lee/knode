@@ -17,6 +17,8 @@ spec:
       maxUnavailable: 1
   template:
     metadata:
+      annotations:
+        knode.jpang.dev/mode: default
       labels:
         name: knode
     spec:

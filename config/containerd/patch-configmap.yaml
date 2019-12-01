@@ -27,16 +27,22 @@ data:
     ExecStart=
     ExecStart=/usr/local/bin/kubelet $KUBELET_KUBECONFIG_ARGS --node-labels="${KUBELET_NODE_LABELS}" --volume-plugin-dir=/etc/kubernetes/volumeplugins $KUBELET_CONFIG_ARGS $KUBELET_AZURE_ARGS $KUBELET_EXTRA_ARGS 
   flags.env: |
-    KUBELET_EXTRA_ARGS=--container-runtime=remote --container-runtime-endpoint=unix:///run/containerd/containerd.sock --network-plugin=kubenet
+    KUBELET_EXTRA_ARGS=--container-runtime=remote --container-runtime-endpoint=unix:///run/containerd/containerd.sock --network-plugin=kubenet --non-masquerade-cidr=10.244.0.0/16
+    KUBELET_AZURE_ARGS=--azure-container-registry-config=/etc/kubernetes/azure.json --cloud-provider=azure --cloud-config=/etc/kubernetes/azure.json --pod-infra-container-image=aksrepos.azurecr.io/mirror/pause-amd64:3.1
   config.yaml: |
     apiVersion: kubelet.config.k8s.io/v1beta1
     kind: KubeletConfiguration
     readOnlyPort: 10255
     clusterDNS:
     - 10.0.0.10
+    clusterDomain: cluster.local
     authentication:
+      webhook:
+        enabled: true
       x509:
         clientCAFile: "/etc/kubernetes/certs/ca.crt"
+    authorization:
+      mode: Webhook
     tlsCertFile: "/etc/kubernetes/certs/kubeletserver.crt"
     tlsPrivateKeyFile: "/etc/kubernetes/certs/kubeletserver.key"
     tlsCipherSuites:
@@ -177,11 +183,6 @@ data:
     Requires=-.slice
     After=-.slice
   containerd-10-cgroup.conf: |
-    [Service]
-    CPUAccounting=true
-    MemoryAccounting=true
-    Slice=runtime.slice
-  docker-10-cgroup.conf: |
     [Service]
     CPUAccounting=true
     MemoryAccounting=true
