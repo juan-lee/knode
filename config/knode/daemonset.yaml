@@ -10,8 +10,15 @@ spec:
   selector:
     matchLabels:
       name: knode
+  minReadySeconds: 0
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
   template:
     metadata:
+      annotations:
+        knode.jpang.dev/mode: default
       labels:
         name: knode
     spec:
@@ -26,7 +33,7 @@ spec:
         - init
         resources:
           limits:
-            memory: 100Mi
+            memory: 500Mi
           requests:
             cpu: 10m
             memory: 50Mi
@@ -38,6 +45,8 @@ spec:
           readOnly: true
         - name: etc
           mountPath: /etc
+        - name: tmp
+          mountPath: /tmp
         - name: var-lib-kubelet
           mountPath: /var/lib/kubelet
       containers:
@@ -70,6 +79,9 @@ spec:
       - name: etc
         hostPath:
           path: /etc
+      - name: tmp
+        hostPath:
+          path: /tmp
       - name: var-lib-kubelet
         hostPath:
           path: /var/lib/kubelet

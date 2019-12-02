@@ -17,11 +17,10 @@ configured to update a node at a time, with two minutes in between nodes.
 
 ``` bash
 # Install knode with defaults
-curl -L https://github.com/juan-lee/knode/releases/download/v0.1.1/knode-default.yaml | kubectl apply -f -
+curl -L https://github.com/juan-lee/knode/releases/download/v0.1.2/knode-default.yaml | kubectl apply -f -
 kubectl rollout status daemonset -n knode-system knode-daemon
 
 # Update knode to move /var/lib/docker to /mnt/docker
-curl -L https://github.com/juan-lee/knode/releases/download/v0.1.1/knode-tmpdir.yaml | kubectl apply -f -
-kubectl rollout restart daemonset -n knode-system knode-daemon
+curl -L https://github.com/juan-lee/knode/releases/download/v0.1.2/knode-tmpdir.yaml | kubectl apply -f -
 kubectl rollout status daemonset -n knode-system knode-daemon
 ```

@@ -8,3 +8,7 @@ metadata:
     k8s-app: knode
 spec:
   minReadySeconds: 120
+  template:
+    metadata:
+      annotations:
+        knode.jpang.dev/mode: kubelet

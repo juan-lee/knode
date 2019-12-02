@@ -17,6 +17,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"io/ioutil"
 	"math"
@@ -42,29 +43,47 @@ func readFile(name string) ([]byte, error) {
 	return b, nil
 }
 
-func nsEnterCommand(arg ...string) *exec.Cmd {
-	args := append([]string{"-m/proc/1/ns/mnt"}, arg...)
-	return exec.Command("/usr/bin/nsenter", args...)
+func nsEnterCommand(arg ...string) error {
+	args := append([]string{"-m/proc/1/ns/mnt", "--"}, arg...)
+	if out, err := exec.Command("/usr/bin/nsenter", args...).CombinedOutput(); err != nil {
+		return errors.New(string(out))
+	}
+	return nil
 }
 
 func daemonReload() error {
-	return nsEnterCommand("/bin/systemctl", "daemon-reload").Run()
+	return nsEnterCommand("/bin/systemctl", "daemon-reload")
 }
 
 func restartDocker() error {
-	return nsEnterCommand("/bin/systemctl", "restart", "docker").Run()
+	return nsEnterCommand("/bin/systemctl", "restart", "docker")
 }
 
 func restartKubelet() error {
-	return nsEnterCommand("/bin/systemctl", "restart", "kubelet").Run()
+	return nsEnterCommand("/bin/systemctl", "restart", "kubelet")
 }
 
 func restartContainerd() error {
-	return nsEnterCommand("/bin/systemctl", "restart", "containerd").Run()
+	return nsEnterCommand("/bin/systemctl", "restart", "containerd")
 }
 
 func enableContainerd() error {
-	return nsEnterCommand("/bin/systemctl", "enable", "containerd").Run()
+	return nsEnterCommand("/bin/systemctl", "enable", "containerd")
+}
+
+func updateContainerd() error {
+	if err := nsEnterCommand(
+		"/usr/bin/curl", "-s", "-L",
+		"https://github.com/containerd/containerd/releases/download/v1.3.0/containerd-1.3.0.linux-amd64.tar.gz",
+		"-o", "/tmp/containerd-1.3.0.linux-amd64.tar.gz",
+	); err != nil {
+		return err
+	}
+	return nsEnterCommand("/bin/tar", "xvzf", "/tmp/containerd-1.3.0.linux-amd64.tar.gz", "-C", "/usr")
+}
+
+func reboot() error {
+	return nsEnterCommand("/bin/systemctl", "reboot")
 }
 
 func replaceIfChanged(src, dst string) (bool, error) {
@@ -128,6 +147,13 @@ func configureKubeletServiceCgroup() (bool, error) {
 	return replaceIfChanged("/configs/kubelet-10-cgroup.conf", "/etc/systemd/system/kubelet.service.d/10-cgroup.conf")
 }
 
+func configureContainerdServiceCgroup() (bool, error) {
+	if err := os.MkdirAll("/etc/systemd/system/containerd.service.d", 0755); err != nil {
+		return false, err
+	}
+	return replaceIfChanged("/configs/containerd-10-cgroup.conf", "/etc/systemd/system/containerd.service.d/10-cgroup.conf")
+}
+
 func configureCGroups() error {
 	_, err := configureRuntimeSlice()
 	if err != nil {
@@ -138,6 +164,10 @@ func configureCGroups() error {
 		return err
 	}
 	dChanged, err := configureDockerServiceCgroup()
+	if err != nil {
+		return err
+	}
+	_, err = configureContainerdServiceCgroup()
 	if err != nil {
 		return err
 	}
@@ -162,12 +192,7 @@ func configureContainerd() error {
 	if err := os.MkdirAll("/etc/systemd/system/containerd.service.d", 0755); err != nil {
 		return err
 	}
-	_, err := configureRuntimeSlice()
-	if err != nil {
-		return err
-	}
-	cgChanged, err := replaceIfChanged("/configs/containerd-10-cgroup.conf", "/etc/systemd/system/containerd.service.d/10-cgroup.conf")
-	if err != nil {
+	if err := os.MkdirAll("/etc/cni/net.d", 0755); err != nil {
 		return err
 	}
 	configChanged, err := replaceIfChanged("/configs/config.toml", "/etc/containerd/config.toml")
@@ -178,7 +203,11 @@ func configureContainerd() error {
 	if err != nil {
 		return err
 	}
-	if cgChanged || configChanged || serviceChanged {
+	cniChanged, err := replaceIfChanged("/configs/kubenet.conf", "/etc/containerd/kubenet.conf")
+	if err != nil {
+		return err
+	}
+	if configChanged || serviceChanged || cniChanged {
 		if err := enableContainerd(); err != nil {
 			return err
 		}
@@ -188,11 +217,17 @@ func configureContainerd() error {
 		if err := restartContainerd(); err != nil {
 			return err
 		}
+		if err := updateContainerd(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func configureKubelet() error {
+	if err := os.MkdirAll("/etc/systemd/system/kubelet.service.d", 0755); err != nil {
+		return err
+	}
 	serviceChanged, err := replaceIfChanged("/configs/kubelet.service", "/etc/systemd/system/kubelet.service")
 	if err != nil {
 		return err
@@ -214,6 +249,9 @@ func configureKubelet() error {
 			return err
 		}
 		if err := restartKubelet(); err != nil {
+			return err
+		}
+		if err := reboot(); err != nil {
 			return err
 		}
 	}

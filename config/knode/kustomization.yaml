@@ -2,3 +2,9 @@ resources:
 - namespace.yaml
 - daemonset.yaml
 - configmap.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+images:
+- name: knode
+  newName: juanlee/knode
+  newTag: dev

@@ -17,6 +17,5 @@ bases:
 - ../knode
 
 patchesStrategicMerge:
-- patch-calico.yaml
 - patch-configmap.yaml
 - patch-daemonset.yaml

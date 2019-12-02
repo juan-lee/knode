@@ -68,6 +68,7 @@ release-manifests: $(KUSTOMIZE) $(RELEASE_DIR)
 	$(KUSTOMIZE) build config/default > $(RELEASE_DIR)/knode-default.yaml
 	$(KUSTOMIZE) build config/tmpdir > $(RELEASE_DIR)/knode-tmpdir.yaml
 	$(KUSTOMIZE) build config/kubelet > $(RELEASE_DIR)/knode-kubelet.yaml
+	$(KUSTOMIZE) build config/containerd > $(RELEASE_DIR)/knode-containerd.yaml
 
 .PHONY: release-containers
 release-containers: $(RELEASE_DIR)
