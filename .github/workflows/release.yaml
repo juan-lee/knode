@@ -65,3 +65,13 @@ jobs:
           asset_path: ./out/knode-kubelet.yaml
           asset_name: knode-kubelet.yaml
           asset_content_type: text/plain
+      - name: Upload knode-containerd.yaml
+        id: upload-release-asset-containerd
+        uses: actions/upload-release-asset@v1.0.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./out/knode-containerd.yaml
+          asset_name: knode-containerd.yaml
+          asset_content_type: text/plain
