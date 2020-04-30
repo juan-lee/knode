@@ -119,10 +119,7 @@ func configureDockerDaemon() error {
 		return err
 	}
 	if changed {
-		if err := restartDocker(); err != nil {
-			return err
-		}
-		if err := restartKubelet(); err != nil {
+		if err := reboot(); err != nil {
 			return err
 		}
 	}
