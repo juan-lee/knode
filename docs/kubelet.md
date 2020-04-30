@@ -11,11 +11,11 @@ configured to update a node at a time, with two minutes in between nodes.
 
 ``` bash
 # Install knode with defaults
-curl -L https://github.com/juan-lee/knode/releases/download/v0.1.2/knode-default.yaml | kubectl apply -f -
+curl -L https://github.com/juan-lee/knode/releases/download/v0.1.3/knode-default.yaml | kubectl apply -f -
 kubectl rollout status daemonset -n knode-system knode-daemon
 
 # Update knode to move reconfigure kubelet
-curl -L https://github.com/juan-lee/knode/releases/download/v0.1.2/knode-kubelet.yaml | kubectl apply -f -
+curl -L https://github.com/juan-lee/knode/releases/download/v0.1.3/knode-kubelet.yaml | kubectl apply -f -
 kubectl rollout status daemonset -n knode-system knode-daemon
 ```
 
