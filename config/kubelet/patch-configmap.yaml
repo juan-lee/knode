@@ -3,32 +3,22 @@ kind: ConfigMap
 metadata:
   name: config
   namespace: system
-data:
-  kubelet.service: |
-    [Unit]
-    Description=kubelet: The Kubernetes Node Agent
-    Documentation=http://kubernetes.io/docs/
-
-    [Service]
-    ExecStart=/usr/local/bin/kubelet
-    Restart=always
-    StartLimitInterval=0
-    RestartSec=10
-
-    [Install]
-    WantedBy=multi-user.target
   10-kubeadm.conf: |
     # Note: This dropin only works with kubelet v1.11+
     [Service]
     Environment="KUBELET_KUBECONFIG_ARGS=--kubeconfig=/var/lib/kubelet/kubeconfig"
-    Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml --dynamic-config-dir=/var/lib/kubelet/dyncfg"
-    EnvironmentFile=-/var/lib/kubelet/flags.env
-    EnvironmentFile=-/etc/default/kubelet
+    Environment="KUBELET_DYNAMIC_ARGS=--config=/var/lib/kubelet/config.yaml --dynamic-config-dir=/var/lib/kubelet/dyncfg"
+    EnvironmentFile=/var/lib/kubelet/flags.env
+    EnvironmentFile=/etc/default/kubelet
     ExecStart=
-    ExecStart=/usr/local/bin/kubelet $KUBELET_KUBECONFIG_ARGS --node-labels="${KUBELET_NODE_LABELS}" --volume-plugin-dir=/etc/kubernetes/volumeplugins $KUBELET_CONFIG_ARGS $KUBELET_AZURE_ARGS $KUBELET_EXTRA_ARGS 
+    ExecStart=/usr/local/bin/kubelet \
+            --node-labels="${KUBELET_NODE_LABELS}" \
+            $KUBELET_CONFIG \
+            $KUBELET_KUBECONFIG_ARGS \
+            $KUBELET_DYNAMIC_ARGS \
+            $KUBELET_EXTRA_ARGS
   flags.env: |
-    KUBELET_EXTRA_ARGS=--network-plugin=kubenet --non-masquerade-cidr=10.244.0.0/16
-    KUBELET_AZURE_ARGS=--azure-container-registry-config=/etc/kubernetes/azure.json --cloud-provider=azure --cloud-config=/etc/kubernetes/azure.json --pod-infra-container-image=aksrepos.azurecr.io/mirror/pause-amd64:3.1
+    KUBELET_EXTRA_ARGS=--experimental-kernel-memcg-notification=true
   config.yaml: |
     apiVersion: kubelet.config.k8s.io/v1beta1
     kind: KubeletConfiguration
